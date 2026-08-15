@@ -1,0 +1,273 @@
+@page "/dashboard"
+@* @layout MainLayout *@
+@using UserApi.Blazor.Models.Responses
+@using UserApi.Blazor.Services
+@inject DashboardService DashboardService
+@inject AuthService AuthService
+@inject NavigationManager NavigationManager
+
+<RequireAuth>
+    <div class="container py-4">
+        @* <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="mb-1">Dashboard</h2>
+                <p class="text-muted mb-0">
+                    Overview of your projects, tasks and account status.
+                </p>
+            </div>
+
+            @if (AuthService.CurrentUser is not null)
+            {
+                <span class="badge bg-primary">
+                    @AuthService.CurrentUser.Role
+                </span>
+            }
+        </div> *@
+        <PageHeader Title="Dashboard" Subtitle="Overview of your projects, tasks and account status.">
+            <Actions>
+                @if (AuthService.CurrentUser is not null)
+                {
+                    <span class="badge bg-primary">
+                        @AuthService.CurrentUser.Role
+                    </span>
+                }
+            </Actions>
+        </PageHeader>
+
+
+        @* @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger">
+                @errorMessage
+            </div>
+        } *@
+        <ErrorAlert Message="@errorMessage"></ErrorAlert>
+
+        @if (isLoading)
+        {
+            @* <div class="alert alert-info">
+                Loading dashboard...
+            </div> *@
+            <LoadingState Message="Loading dashboard..." />
+        }
+        else if (summary is not null)
+        {
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">Projects</div>
+                            <h3 class="mb-0">@summary.TotalProjects</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">Total Tasks</div>
+                            <h3 class="mb-0">@summary.TotalTasks</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">Todo</div>
+                            <h3 class="mb-0">@summary.TodoTasks</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-3">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">Done</div>
+                            <h3 class="mb-0">@summary.DoneTasks</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-lg-8">
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title mb-3">Task Status</h5>
+
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between">
+                                    <span>Todo</span>
+                                    <span>@summary.TodoTasks</span>
+                                </div>
+                                <div class="progress">
+                                    <div class="progress-bar bg-secondary" style="width: @GetPercent(summary.TodoTasks)%">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between">
+                                    <span>In Progress</span>
+                                    <span>@summary.InProgressTasks</span>
+                                </div>
+                                <div class="progress">
+                                    <div class="progress-bar bg-warning"
+                                         style="width: @GetPercent(summary.InProgressTasks)%">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="d-flex justify-content-between">
+                                    <span>Done</span>
+                                    <span>@summary.DoneTasks</span>
+                                </div>
+                                <div class="progress">
+                                    <div class="progress-bar bg-success" style="width: @GetPercent(summary.DoneTasks)%">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4">
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-body">
+                            <h5 class="card-title mb-3">Current User</h5>
+
+                            <div class="mb-2">
+                                <strong>Name:</strong> @AuthService.CurrentUser?.Name
+                            </div>
+
+                            <div class="mb-2">
+                                <strong>Email:</strong> @AuthService.CurrentUser?.Email
+                            </div>
+
+                            <div>
+                                <strong>Role:</strong> @AuthService.CurrentUser?.Role
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (AuthService.IsAdmin)
+                    {
+                        <div class="card shadow-sm">
+                            <div class="card-body">
+                                <h5 class="card-title mb-3">Admin Summary</h5>
+
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Active Users</span>
+                                    <strong>@summary.TotalUsers</strong>
+                                </div>
+
+                                <div class="d-flex justify-content-between">
+                                    <span>Deleted Users</span>
+                                    <strong>@summary.DeletedUsers</strong>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="mt-4 d-flex gap-2 flex-wrap">
+                <button class="btn btn-primary" @onclick="GoToProjects">
+                    Go to Projects
+                </button>
+
+                @if (AuthService.IsAdmin)
+                {
+                    <button class="btn btn-outline-danger" @onclick="GoToAdminUsers">
+                        Manage Users
+                    </button>
+                }
+            </div>
+        }
+    </div>
+</RequireAuth>
+
+@code {
+    private DashboardSummaryResponse? summary;
+    private bool isLoading;
+    private string? errorMessage;
+    private bool hasLoaded;
+
+    @* protected override async Task OnParametersSetAsync()
+    {
+        if (!AuthService.IsInitialized || hasLoaded)
+        {
+            return;
+        }
+
+        if (!AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+
+        hasLoaded = true;
+
+        await LoadDashboard();
+    } *@
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (hasLoaded == false && AuthService.IsInitialized == true && AuthService.IsAuthenticated == true)
+        {
+            hasLoaded = true;
+            await LoadDashboard();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadDashboard()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var result = await DashboardService.GetSummaryAsync();
+
+            if (result?.Content is not null)
+            {
+                summary = result.Content;
+            }
+            else
+            {
+                errorMessage = result?.Message ?? "Cannot load dashboard.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Cannot connect to API.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private int GetPercent(int value)
+    {
+        if (summary is null || summary.TotalTasks == 0)
+        {
+            return 0;
+        }
+
+        return (int)Math.Round((double)value / summary.TotalTasks * 100);
+    }
+
+    private void GoToProjects()
+    {
+        NavigationManager.NavigateTo("/projects");
+    }
+
+    private void GoToAdminUsers()
+    {
+        NavigationManager.NavigateTo("/admin/users");
+    }
+}

@@ -1,4 +1,9 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+﻿@using UserApi.Blazor.Services
+@inject AuthService AuthService
+@inject NavigationManager NavigationManager
+@implements IDisposable
+
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="">UserApi.Blazor</a>
         <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
@@ -14,7 +19,7 @@
                 <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
             </NavLink>
         </div>
-        <div class="nav-item px-3">
+        @* <div class="nav-item px-3">
             <NavLink class="nav-link" href="counter">
                 <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
             </NavLink>
@@ -23,17 +28,57 @@
             <NavLink class="nav-link" href="weather">
                 <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
             </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="login">
-                Login
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="projects">
-                Projects
-            </NavLink>
-        </div>
+        </div> *@
+
+        @if (AuthService.IsAuthenticated == false)
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="login">
+                    Login
+                </NavLink>
+            </div>
+        }
+        else
+        {
+            <div class="nav-item px-3">
+                <div class="nav-link text-light">
+                    Hello, @AuthService.CurrentUser?.Name
+                </div>
+            </div>
+
+            <div class="nav-item px-3">
+                <div class="nav-link text-light">
+                    Role: @AuthService.CurrentUser?.Role
+                </div>
+            </div>
+
+
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="dashboard">
+                    Dashboard
+                </NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="projects">
+                    Projects
+                </NavLink>
+            </div>
+
+            @if (AuthService.IsAdmin)
+            {
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="admin/users">
+                        Admin Users
+                    </NavLink>
+                </div>
+            }
+
+            <div class="nav-item px-3">
+                <button class="btn btn-link nav-link text-start w-100" @onclick="Logout">Logout</button>
+            </div>
+        }
     </nav>
 </div>
 
@@ -42,8 +87,29 @@
 
     private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
 
+    protected override void OnInitialized()
+    {
+        AuthService.OnAuthStateChanged += HandleAuthStateChanged;
+    }
+
     private void ToggleNavMenu()
     {
         collapseNavMenu = !collapseNavMenu;
+    }
+
+    private void HandleAuthStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task Logout()
+    {
+        await AuthService.LogoutAsync();
+        NavigationManager.NavigateTo("/login");
+    }
+
+    public void Dispose()
+    {
+        AuthService.OnAuthStateChanged -= HandleAuthStateChanged;
     }
 }

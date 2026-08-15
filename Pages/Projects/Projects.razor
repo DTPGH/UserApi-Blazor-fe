@@ -1,0 +1,577 @@
+@page "/projects"
+@using UserApi.Blazor.Services
+@using UserApi.Blazor.Models.Responses
+@using UserApi.Blazor.Models.Requests
+
+@inject ProjectService ProjectService
+@inject AuthService AuthService
+@inject NavigationManager NavigationManager
+
+<RequireAuth>
+    <div class="container py-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="mb-2">Projects</h2>
+                <p class="text-muted mb-0">Manage your projects and open tasks inside each project.</p>
+            </div>
+
+            @if (AuthService.CurrentUser is not null)
+            {
+                <span class="badge bg-primary">
+                    @AuthService.CurrentUser.Role
+                </span>
+            }
+
+
+
+
+        </div>
+
+        @if (string.IsNullOrWhiteSpace(errorMessage) == false)
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+
+        @if (string.IsNullOrWhiteSpace(successMessage) == false)
+        {
+            <div class="alert alert-success">@successMessage</div>
+        }
+
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">Create Project</h5>
+
+                        <EditForm Model="createProjectRequest" OnValidSubmit="CreateProject">
+                            <DataAnnotationsValidator />
+
+                            <div class="mb-3">
+                                <label class="form-label">Project name</label>
+                                <InputText class="form-control" @bind-Value="createProjectRequest.Name"
+                                           placeholder="Example: Portfolio API" />
+                                <ValidationMessage For="@(() => createProjectRequest.Name)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Description</label>
+                                <InputTextArea class="form-control" rows="4"
+                                               @bind-Value="createProjectRequest.Description" placeholder="Short description..." />
+                                <ValidationMessage For="@(() => createProjectRequest.Description)" />
+                            </div>
+
+                            <button type="submit" class="btn btn-primary w-100" disabled="@isCreating">
+                                @(isCreating ? "Creating..." : "Create")
+                            </button>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+                @if (isLoading)
+                {
+                    <div class="alert alert-info">
+                        Loading projects...
+                    </div>
+                }
+                else if (projects.Count == 0)
+                {
+                    <div class="card shadow-sm">
+                        <div class="card-body text-center py-5">
+                            <h5>No projects yet</h5>
+                            <p class="text-muted mb-0">
+                                Create your first project using the form on the left.
+                            </p>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="row g-3">
+                        @foreach (var project in projects)
+                        {
+                            <div class="col-md-6">
+                                <div class="card h-100 shadow-sm">
+                                    <div class="card-body d-flex flex-column">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <h5 class="card-title mb-0">
+                                                @project.Name
+                                            </h5>
+
+                                            <span class="badge bg-secondary">
+                                                #@project.Id
+                                            </span>
+                                        </div>
+
+                                        <p class="text-muted flex-grow-1">
+                                            @(string.IsNullOrWhiteSpace(project.Description)
+                                                ? "No description"
+                                                : project.Description)
+                                        </p>
+
+                                        <div class="small text-muted mb-3">
+                                            Owner: @project.OwnerName
+                                        </div>
+
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-outline-primary btn-sm"
+                                                    @onclick="() => ViewProjectDetail(project.Id)">
+                                                View
+                                            </button>
+
+                                            <button class="btn btn-outline-info btn-sm"
+                                                    @onclick="() => OpenEditProjectModal(project.Id)">
+                                                Edit
+                                            </button>
+
+                                            <button class="btn btn-outline-secondary btn-sm"
+                                                    @onclick="() => OpenTasks(project.Id)">
+                                                Tasks
+                                            </button>
+
+                                            <button class="btn btn-outline-danger btn-sm"
+                                                    @onclick="() => DeleteProject(project.Id)">
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+        </div>
+    </div>
+</RequireAuth>
+
+@if (showProjectDetailModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title">Project Detail</h5>
+
+                    <button type="button" class="btn-close" @onclick="CloseProjectDetailModal">
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    @if (isLoadingProjectDetail)
+                    {
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary mb-3" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+
+                            <p class="text-muted mb-0">
+                                Loading project detail...
+                            </p>
+                        </div>
+                    }
+                    else if (selectedProject is not null)
+                    {
+                        <div class="mb-3">
+                            <div class="text-muted small">Project Id</div>
+                            <div class="fw-semibold">#@selectedProject.Id</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="text-muted small">Project Name</div>
+                            <div class="fw-semibold">@selectedProject.Name</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="text-muted small">Description</div>
+                            <div>
+                                @(string.IsNullOrWhiteSpace(selectedProject.Description)
+                                    ? "No description"
+                                    : selectedProject.Description)
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="text-muted small">Owner</div>
+                            <div>@selectedProject.OwnerName</div>
+                        </div>
+
+                        <div>
+                            <div class="text-muted small">Owner Id</div>
+                            <div>#@selectedProject.OwnerId</div>
+                        </div>
+                    }
+                </div>
+
+                <div class="modal-footer">
+                    @if (selectedProject is not null)
+                    {
+                        <button class="btn btn-primary" @onclick="() => OpenTasksFromDetail(selectedProject.Id)">
+                            Open Tasks
+                        </button>
+                    }
+
+                    <button class="btn btn-secondary" @onclick="CloseProjectDetailModal">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showEditProjectModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Project</h5>
+
+                    <button type="button" class="btn-close" @onclick="CloseEditProjectModal">
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    @if (isLoadingEditProject)
+                    {
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary mb-3" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+
+                            <p class="text-muted mb-0">
+                                Loading project information...
+                            </p>
+                        </div>
+                    }
+                    else
+                    {
+                        @if (!string.IsNullOrWhiteSpace(editProjectErrorMessage))
+                        {
+                            <div class="alert alert-danger">
+                                @editProjectErrorMessage
+                            </div>
+                        }
+
+                        <EditForm Model="updateProjectRequest" OnValidSubmit="UpdateProject">
+                            <DataAnnotationsValidator />
+
+                            <div class="mb-3">
+                                <label class="form-label">Project Name</label>
+                                <InputText class="form-control" @bind-Value="updateProjectRequest.Name" />
+                                <ValidationMessage For="@(() => updateProjectRequest.Name)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Description</label>
+                                <InputTextArea class="form-control" rows="4" @bind-Value="updateProjectRequest.Description" />
+                                <ValidationMessage For="@(() => updateProjectRequest.Description)" />
+                            </div>
+
+                            <div class="alert alert-info small">
+                                Project ownership is managed by the backend and cannot be changed from this form.
+                            </div>
+
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="button" class="btn btn-secondary" @onclick="CloseEditProjectModal">
+                                    Cancel
+                                </button>
+
+                                <button type="submit" class="btn btn-primary" disabled="@isUpdatingProject">
+                                    @(isUpdatingProject ? "Saving..." : "Save Changes")
+                                </button>
+                            </div>
+                        </EditForm>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ProjectResponse> projects = new();
+    private CreateProjectRequest createProjectRequest = new();
+
+    private bool isLoading;
+    private bool isCreating;
+
+    public string? errorMessage;
+    public string? successMessage;
+
+    private bool hasLoaded;
+
+    @* View project detail *@
+    private ProjectResponse? selectedProject;
+    private bool showProjectDetailModal;
+    private bool isLoadingProjectDetail;
+
+    @* update project info basic *@
+    private int editingProjectId;
+
+    private UpdateProjectRequest updateProjectRequest = new();
+
+    private bool showEditProjectModal;
+
+    private bool isLoadingEditProject;
+
+    private bool isUpdatingProject;
+
+    private string? editProjectErrorMessage;
+
+    @* protected override async Task OnParametersSetAsync()
+    {
+        if (!AuthService.IsInitialized || hasLoaded)
+        {
+            return;
+        }
+
+        if (AuthService.IsAuthenticated == false)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+        hasLoaded = true;
+        await LoadProjects();
+    } *@
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!hasLoaded && AuthService.IsInitialized && AuthService.IsAuthenticated)
+        {
+            hasLoaded = true;
+            await LoadProjects();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadProjects()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var result = await ProjectService.GetProjecAsync();
+            if (result?.Content != null)
+            {
+                projects = result.Content;
+            }
+            else
+            {
+                errorMessage = result?.Message ?? "Cannot load projects";
+            }
+        }
+        catch
+        {
+            errorMessage = "Cannot connect to API";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+
+    }
+
+    private async Task CreateProject()
+    {
+        isCreating = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var result = await ProjectService.CreateProjectAsync(createProjectRequest);
+
+            if (result?.Content is not null)
+            {
+                successMessage = result.Message;
+                createProjectRequest = new CreateProjectRequest();
+
+                await LoadProjects();
+            }
+            else
+            {
+                errorMessage = result?.Message ?? "Cannot create project.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Cannot connect to API.";
+        }
+        finally
+        {
+            isCreating = false;
+        }
+    }
+
+    private async Task DeleteProject(int id)
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var result = await ProjectService.DeleteProjectAsync(id);
+
+            if (result?.Content == true)
+            {
+                successMessage = result.Message;
+                await LoadProjects();
+            }
+            else
+            {
+                errorMessage = result?.Message ?? "Cannot delete project.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Cannot connect to API.";
+        }
+    }
+
+    private void OpenTasks(int projectId)
+    {
+        NavigationManager.NavigateTo($"/projects/{projectId}/tasks");
+    }
+
+    @* view project detail *@
+    private async Task ViewProjectDetail(int projectId)
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        selectedProject = null;
+        showProjectDetailModal = true;
+        isLoadingProjectDetail = true;
+
+        try
+        {
+            var result = await ProjectService.GetProjectByIdAsync(projectId);
+            if (result?.Content is not null)
+            {
+                selectedProject = result.Content;
+            }
+            else
+            {
+                errorMessage = result?.Message ?? "Cannot load project detail";
+                showProjectDetailModal = false;
+            }
+        }
+        catch
+        {
+            errorMessage = "Cannot connect to API";
+            showProjectDetailModal = false;
+        }
+        finally
+        {
+            isLoadingProjectDetail = false;
+        }
+    }
+
+    private void CloseProjectDetailModal()
+    {
+        showProjectDetailModal = false;
+        selectedProject = null;
+    }
+
+    private void OpenTasksFromDetail(int projectId)
+    {
+        CloseProjectDetailModal();
+        OpenTasks(projectId);
+    }
+
+    @* Update project info basic *@
+    private async Task OpenEditProjectModal(int projectId)
+    {
+        errorMessage = null;
+        successMessage = null;
+        editProjectErrorMessage = null;
+
+        editingProjectId = projectId;
+        updateProjectRequest = new UpdateProjectRequest();
+
+        showEditProjectModal = true;
+        isLoadingEditProject = true;
+        try
+        {
+            var result = await ProjectService.GetProjectByIdAsync(projectId);
+
+            if (result?.Content is not null)
+            {
+                updateProjectRequest = new UpdateProjectRequest
+                {
+                    Name = result.Content.Name,
+                    Description = result.Content.Description
+                };
+            }
+            else
+            {
+                editProjectErrorMessage = result?.Message ?? "Cannot load project information.";
+            }
+        }
+        catch
+        {
+            editProjectErrorMessage = "Cannot connect to API.";
+        }
+        finally
+        {
+            isLoadingEditProject = false;
+        }
+    }
+
+    private void CloseEditProjectModal()
+    {
+        showEditProjectModal = false;
+        editingProjectId = 0;
+        updateProjectRequest = new UpdateProjectRequest();
+        isLoadingEditProject = false;
+        isUpdatingProject = false;
+        editProjectErrorMessage = null;
+    }
+
+    private async Task UpdateProject()
+    {
+        if (editingProjectId <= 0)
+        {
+            editProjectErrorMessage = "Invalid project.";
+            return;
+        }
+
+        editProjectErrorMessage = null;
+        errorMessage = null;
+        successMessage = null;
+        isUpdatingProject = true;
+
+        try
+        {
+            var result = await ProjectService.UpdateProjectAsync(
+                editingProjectId,
+                updateProjectRequest);
+
+            if (result?.Content is not null)
+            {
+                successMessage = result.Message;
+
+                CloseEditProjectModal();
+
+                await LoadProjects();
+            }
+            else
+            {
+                editProjectErrorMessage = result?.Message ?? "Cannot update project.";
+            }
+        }
+        catch
+        {
+            editProjectErrorMessage = "Cannot connect to API.";
+        }
+        finally
+        {
+            isUpdatingProject = false;
+        }
+    }
+}

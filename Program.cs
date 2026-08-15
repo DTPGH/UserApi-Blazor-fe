@@ -11,5 +11,10 @@ builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri("http://
 
 // DI Services
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<ProjectService>();
+builder.Services.AddScoped<TaskItemService>();
+builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<DashboardService>();
+builder.Services.AddScoped<LocalStorageService>();
 
 await builder.Build().RunAsync();

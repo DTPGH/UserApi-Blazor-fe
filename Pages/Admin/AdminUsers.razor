@@ -1,0 +1,938 @@
+@page "/admin/users"
+@using UserApi.Blazor.Models.Requests
+@using UserApi.Blazor.Models.Responses
+@using UserApi.Blazor.Services
+@inject UserService UserService
+@inject AuthService AuthService
+@inject NavigationManager NavigationManager
+
+<RequireAuth>
+    <div class="container py-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="mb-1">Admin Users</h2>
+                <p class="text-muted mb-0">
+                    Manage users, roles, soft delete and restore accounts.
+                </p>
+            </div>
+
+            <span class="badge bg-danger">
+                Admin
+            </span>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger">
+                @errorMessage
+            </div>
+            @*Or Use component ErrorAlert custom *@
+            <ErrorAlert Message="@errorMessage">
+            </ErrorAlert>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="alert alert-success">
+                @successMessage
+            </div>
+        }
+
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">Create User</h5>
+                        <EditForm Model="createUserRequest" OnValidSubmit="CreateUser">
+                            <DataAnnotationsValidator />
+
+                            <div class="mb-3">
+                                <label class="form-label">Name</label>
+                                <InputText class="form-control" @bind-Value="createUserRequest.Name" />
+                                <ValidationMessage For="@(() => createUserRequest.Name)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Email</label>
+                                <InputText class="form-control" @bind-Value="createUserRequest.Email" />
+                                <ValidationMessage For="@(() => createUserRequest.Email)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Password</label>
+                                <InputText type="password" class="form-control"
+                                           @bind-Value="createUserRequest.Password" />
+                                <ValidationMessage For="@(() => createUserRequest.Password)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Age</label>
+                                <InputNumber class="form-control" @bind-Value="createUserRequest.Age" />
+                                <ValidationMessage For="@(() => createUserRequest.Age)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Role</label>
+                                <InputSelect class="form-select" @bind-Value="createUserRequest.Role">
+                                    <option value="User">User</option>
+                                    <option value="Admin">Admin</option>
+                                </InputSelect>
+                                <ValidationMessage For="@(() => createUserRequest.Role)" />
+                            </div>
+
+                            <button type="submit" class="btn btn-primary w-100" disabled="@isCreating">
+                                @(isCreating ? "Creating..." : "Create User")
+                            </button>
+                        </EditForm>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+
+                <ul class="nav nav-tabs mb-3">
+                    <li class="nav-item">
+                        <button class="nav-link @(activeTab == "active" ? "active" : "")" @onclick="ShowActiveUsers">
+                            Active Users
+                        </button>
+                    </li>
+
+                    <li class="nav-item">
+                        <button class="nav-link @(activeTab == "deleted" ? "active" : "")" @onclick="ShowDeletedUsers">
+                            Deleted Users
+                        </button>
+                    </li>
+                </ul>
+
+                @if (activeTab == "active")
+                {
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="card-title mb-0">Active Users</h5>
+
+                                <button class="btn btn-outline-secondary btn-sm" @onclick="LoadUsers">
+                                    Refresh
+                                </button>
+                            </div>
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Search</label>
+                                    <InputText class="form-control" @bind-Value="userQuery.Search"
+                                               @onkeydown="HandleSearchKeyDown" placeholder="Search by name or email..." />
+                                </div>
+
+                                <div class="col-md-2">
+                                    <label class="form-label">Sort by</label>
+                                    <InputSelect class="form-select" @bind-Value="userQuery.SortBy">
+                                        <option value="id">Id</option>
+                                        <option value="name">Name</option>
+                                        <option value="age">Age</option>
+                                    </InputSelect>
+                                </div>
+
+                                <div class="col-md-2">
+                                    <label class="form-label">Direction</label>
+                                    <InputSelect class="form-select" @bind-Value="userQuery.SortDirection">
+                                        <option value="asc">Asc</option>
+                                        <option value="desc">Desc</option>
+                                    </InputSelect>
+                                </div>
+
+                                <div class="col-md-2">
+                                    <label class="form-label">Page size</label>
+                                    <InputSelect class="form-select" @bind-Value="userQuery.PageSize">
+                                        <option value="5">5</option>
+                                        <option value="10">10</option>
+                                        <option value="20">20</option>
+                                    </InputSelect>
+                                </div>
+
+                                <div class="col-md-2 d-flex align-items-end">
+                                    <div class="d-flex gap-2 w-100">
+
+                                        <button class="btn btn-primary w-100" @onclick="ApplyUserFilters">
+                                            Apply
+                                        </button>
+
+                                        <button class="btn btn-outline-secondary" @onclick="ClearUserFilters">
+                                            Clear
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            @if (isLoading)
+                            {
+                                <div class="alert alert-info">
+                                    Loading users...
+                                </div>
+                            }
+                            else if (users.Count == 0)
+                            {
+                                <div class="text-center text-muted py-4">
+                                    No users found.
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle">
+                                        <thead>
+                                            <tr>
+                                                <th>Id</th>
+                                                <th>User</th>
+                                                <th>Age</th>
+                                                <th>Role</th>
+                                                <th class="text-end">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var user in users)
+                                            {
+                                                <tr>
+                                                    <td>#@user.Id</td>
+                                                    <td>
+                                                        <div class="fw-semibold">@user.Name</div>
+                                                        <div class="text-muted small">@user.Email</div>
+                                                    </td>
+                                                    <td>@user.Age</td>
+                                                    <td>
+                                                        <select class="form-select form-select-sm" value="@user.Role"
+                                                                @onchange="e => ChangeRole(user.Id, e)">
+                                                            <option value="User">User</option>
+                                                            <option value="Admin">Admin</option>
+                                                        </select>
+                                                    </td>
+                                                    <td class="text-end">
+                                                        <div class="d-flex justify-content-end gap-2">
+                                                            <button class="btn btn-outline-primary btn-sm"
+                                                                    @onclick="() => ViewUserDetail(user.Id)">
+                                                                View
+                                                            </button>
+                                                            <button class="btn btn-outline-primary btn-sm"
+                                                                    @onclick="() => OpenEditUserModal(user.Id)">
+                                                                Edit
+                                                            </button>
+                                                            <button class="btn btn-outline-danger btn-sm"
+                                                                    @onclick="() => DeleteUser(user.Id)">
+                                                                Delete
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div class="d-flex justify-content-between align-items-center mt-3">
+                                    <button class="btn btn-outline-secondary btn-sm" disabled="@(userQuery.PageNumber <= 1)"
+                                            @onclick="PreviousPage">
+                                        Previous
+                                    </button>
+
+                                    <div class="text-muted small text-center">
+                                        <div>
+                                            Page @userQuery.PageNumber of @totalPages
+                                        </div>
+                                        <div>
+                                            Total records: @totalRecords
+                                        </div>
+                                    </div>
+
+                                    <button class="btn btn-outline-secondary btn-sm"
+                                            disabled="@(userQuery.PageNumber >= totalPages)" @onclick="NextPage">
+                                        Next
+                                    </button>
+                                </div>
+                            }
+
+                        </div>
+                    </div>
+                }
+
+            
+                else if (activeTab == "deleted")
+                {
+                    @* bảng Deleted Users mới *@
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="card-title mb-0">Deleted Users</h5>
+
+                                <button class="btn btn-outline-secondary btn-sm" @onclick="LoadDeletedUsers">
+                                    Refresh
+                                </button>
+                            </div>
+
+                            @if (isLoadingDeletedUsers)
+                            {
+                                <div class="alert alert-info">
+                                    Loading deleted users...
+                                </div>
+                            }
+                            else if (deletedUsers.Count == 0)
+                            {
+                                <div class="text-center text-muted py-4">
+                                    No deleted users found.
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle">
+                                        <thead>
+                                            <tr>
+                                                <th>Id</th>
+                                                <th>User</th>
+                                                <th>Age</th>
+                                                <th>Role</th>
+                                                <th class="text-end">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var user in deletedUsers)
+                                            {
+                                                <tr>
+                                                    <td>#@user.Id</td>
+                                                    <td>
+                                                        <div class="fw-semibold">@user.Name</div>
+                                                        <div class="text-muted small">@user.Email</div>
+                                                    </td>
+                                                    <td>@user.Age</td>
+                                                    <td>
+                                                        <span class="badge @(user.Role == "Admin" ? "bg-danger" : "bg-secondary")">
+                                                            @user.Role
+                                                        </span>
+                                                    </td>
+                                                    <td class="text-end">
+                                                        <div class="d-flex justify-content-end gap-2">
+                                                            <button class="btn btn-outline-primary btn-sm"
+                                                                    @onclick="() => ViewUserDetail(user.Id)">
+                                                                View
+                                                            </button>
+
+                                                            
+                                                            <button class="btn btn-outline-success btn-sm"
+                                                                    @onclick="() => RestoreUser(user.Id)">
+                                                                Restore
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+
+
+        </div>
+    </div>
+</RequireAuth>
+
+@if (showUserDetailModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title">User Detail</h5>
+
+                    <button type="button" class="btn-close" @onclick="CloseUserDetailModal">
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    @if (isLoadingUserDetail)
+                    {
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary mb-3" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+
+                            <p class="text-muted mb-0">
+                                Loading user detail...
+                            </p>
+                        </div>
+                    }
+                    else if (selectedUser is not null)
+                    {
+                        <div class="mb-3">
+                            <div class="text-muted small">Id</div>
+                            <div class="fw-semibold">#@selectedUser.Id</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="text-muted small">Name</div>
+                            <div class="fw-semibold">@selectedUser.Name</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="text-muted small">Email</div>
+                            <div>@selectedUser.Email</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="text-muted small">Age</div>
+                            <div>@selectedUser.Age</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div class="text-muted small">Role</div>
+                            <span class="badge @(selectedUser.Role == "Admin" ? "bg-danger" : "bg-secondary")">
+                                @selectedUser.Role
+                            </span>
+                        </div>
+
+                        <div>
+                            <div class="text-muted small">Description</div>
+                            <div>
+                                @(string.IsNullOrWhiteSpace(selectedUser.Description)
+                                    ? "No description"
+                                    : selectedUser.Description)
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseUserDetailModal">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+
+@if (showEditUserModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit User</h5>
+
+                    <button type="button" class="btn-close" @onclick="CloseEditUserModal">
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    @if (!string.IsNullOrWhiteSpace(editUserErrorMessage))
+                    {
+                        <div class="alert alert-danger">
+                            @editUserErrorMessage
+                        </div>
+                        <ErrorAlert Message="@editUserErrorMessage">
+                        </ErrorAlert>
+                    }
+                    @if (isLoadingEditUser)
+                    {
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary mb-3" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+
+                            <p class="text-muted mb-0">
+                                Loading user information...
+                            </p>
+                        </div>
+                    }
+                    else
+                    {
+                        <EditForm Model="updateUserRequest" OnValidSubmit="UpdateUser">
+                            <DataAnnotationsValidator />
+
+                            <div class="mb-3">
+                                <label class="form-label">Name</label>
+                                <InputText class="form-control" @bind-Value="updateUserRequest.Name" />
+                                <ValidationMessage For="@(() => updateUserRequest.Name)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Email</label>
+                                <InputText class="form-control" @bind-Value="updateUserRequest.Email" />
+                                <ValidationMessage For="@(() => updateUserRequest.Email)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Age</label>
+                                <InputNumber class="form-control" @bind-Value="updateUserRequest.Age" />
+                                <ValidationMessage For="@(() => updateUserRequest.Age)" />
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Description</label>
+                                <InputTextArea class="form-control" rows="4" @bind-Value="updateUserRequest.Description" />
+                                <ValidationMessage For="@(() => updateUserRequest.Description)" />
+                            </div>
+
+                            <div class="alert alert-info small">
+                                Role is managed separately using the role dropdown in the users table.
+                            </div>
+
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="button" class="btn btn-secondary" @onclick="CloseEditUserModal">
+                                    Cancel
+                                </button>
+
+                                <button type="submit" class="btn btn-primary" disabled="@isUpdatingUser">
+                                    @(isUpdatingUser ? "Saving..." : "Save Changes")
+                                </button>
+                            </div>
+                        </EditForm>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<UserResponse> users = new();
+    private CreateUserRequest createUserRequest = new();
+
+    private bool isLoading;
+    private bool isCreating;
+
+    private string? errorMessage;
+    private string? successMessage;
+
+    private UserQueryParameters userQuery = new();
+    private int totalRecords;
+    private int totalPages = 1;
+
+    private List<UserResponse> deletedUsers = new();
+
+    private string activeTab = "active";
+
+    private bool isLoadingDeletedUsers;
+
+    private bool hasLoaded;
+
+    @* Show user detail *@
+    private UserResponse? selectedUser;
+    private bool showUserDetailModal;
+    private bool isLoadingUserDetail;
+
+    @* Update info basic of user *@
+    private int editingUserId;
+    private UpdateUserRequest updateUserRequest = new();
+    private bool showEditUserModal;
+    private bool isLoadingEditUser;
+    private bool isUpdatingUser;
+    private string? editUserErrorMessage;
+
+    @* protected override async Task OnParametersSetAsync()
+    {
+        if (!AuthService.IsInitialized || hasLoaded)
+        {
+            return;
+        }
+
+        if (!AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+
+        if (!AuthService.IsAdmin)
+        {
+            NavigationManager.NavigateTo("/projects");
+            return;
+        }
+        hasLoaded = true;
+        await LoadUsers();
+    } *@
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!hasLoaded &&
+            AuthService.IsInitialized &&
+            AuthService.IsAuthenticated &&
+            AuthService.IsAdmin)
+        {
+            hasLoaded = true;
+
+            await LoadUsers();
+
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadUsers()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var result = await UserService.GetUsersAsync(userQuery);
+
+            if (result?.Content is not null)
+            {
+                users = result.Content.Items;
+                totalRecords = result.Content.TotalRecords;
+                totalPages = result.Content.TotalPages <= 0
+                    ? 1
+                    : result.Content.TotalPages;
+
+                if (userQuery.PageNumber > totalPages)
+                {
+                    userQuery.PageNumber = totalPages;
+                    await LoadUsers();
+                }
+            }
+            else
+            {
+                errorMessage = result?.Message ?? "Cannot load users.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Cannot connect to API.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task CreateUser()
+    {
+        isCreating = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var result = await UserService.CreateUserAsync(createUserRequest);
+
+            if (result?.Content is not null)
+            {
+                successMessage = result.Message;
+                createUserRequest = new CreateUserRequest();
+
+                await LoadUsers();
+            }
+            else
+            {
+                errorMessage = result?.Message ?? "Cannot create user.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Cannot connect to API.";
+        }
+        finally
+        {
+            isCreating = false;
+        }
+    }
+
+    private async Task ChangeRole(int userId, ChangeEventArgs e)
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        var newRole = e.Value?.ToString();
+
+        if (newRole is not "User" and not "Admin")
+        {
+            errorMessage = "Invalid role.";
+            return;
+        }
+
+        var result = await UserService.UpdateUserRoleAsync(
+            userId,
+            new UpdateUserRoleRequest
+            {
+                Role = newRole
+            });
+
+        if (result?.Content is not null)
+        {
+            successMessage = result.Message;
+            await LoadUsers();
+        }
+        else
+        {
+            errorMessage = result?.Message ?? "Cannot update role.";
+        }
+    }
+
+    private async Task DeleteUser(int userId)
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        var result = await UserService.DeleteUserAsync(userId);
+
+        if (result?.Content == true)
+        {
+            successMessage = result.Message;
+            await LoadUsers();
+            if (activeTab == "deleted")
+            {
+                await LoadDeletedUsers();
+            }
+        }
+        else
+        {
+            errorMessage = result?.Message ?? "Cannot delete user.";
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        if (userQuery.PageNumber <= 1)
+        {
+            return;
+        }
+
+        userQuery.PageNumber--;
+        await LoadUsers();
+    }
+
+    private async Task NextPage()
+    {
+        if (userQuery.PageNumber >= totalPages)
+        {
+            return;
+        }
+
+        userQuery.PageNumber++;
+        await LoadUsers();
+    }
+
+    private async Task ShowActiveUsers()
+    {
+        activeTab = "active";
+        await LoadUsers();
+    }
+
+    private async Task ShowDeletedUsers()
+    {
+        activeTab = "deleted";
+        await LoadDeletedUsers();
+    }
+
+    private async Task LoadDeletedUsers()
+    {
+        isLoadingDeletedUsers = true;
+        errorMessage = null;
+
+        try
+        {
+            var result = await UserService.GetDeletedUsersAsync();
+
+            if (result?.Content is not null)
+            {
+                deletedUsers = result.Content;
+            }
+            else
+            {
+                errorMessage = result?.Message ?? "Cannot load deleted users.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Cannot connect to API.";
+        }
+        finally
+        {
+            isLoadingDeletedUsers = false;
+        }
+    }
+
+    private async Task RestoreUser(int userId)
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var result = await UserService.RestoreUserAsync(userId);
+
+            if (result?.Content is not null)
+            {
+                successMessage = result.Message;
+
+                await LoadDeletedUsers();
+                await LoadUsers();
+            }
+            else
+            {
+                errorMessage = result?.Message ?? "Cannot restore user.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Cannot connect to API.";
+        }
+    }
+
+    private async Task ApplyUserFilters()
+    {
+        userQuery.PageNumber = 1;
+        await LoadUsers();
+    }
+
+    private async Task RefreshUsers()
+    {
+        await LoadUsers();
+    }
+
+    private async Task ClearUserFilters()
+    {
+        userQuery = new UserQueryParameters();
+        await LoadUsers();
+    }
+
+    private async Task HandleSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await ApplyUserFilters();
+        }
+    }
+
+    private async Task ViewUserDetail(int userId)
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        selectedUser = null;
+        showUserDetailModal = true;
+        isLoadingUserDetail = true;
+
+        try
+        {
+            var result = await UserService.GetUserByIdAsync(userId);
+            if (result?.Content is not null)
+            {
+                selectedUser = result.Content;
+            }
+            else
+            {
+                errorMessage = result?.Message ?? "Cannot load user detail";
+                showUserDetailModal = false;
+            }
+        }
+        catch
+        {
+            errorMessage = "Cannot connect to API";
+            showUserDetailModal = false;
+        }
+        finally
+        {
+            isLoadingUserDetail = false;
+        }
+    }
+
+    private void CloseUserDetailModal()
+    {
+        showUserDetailModal = false;
+        selectedUser = null;
+    }
+
+    private async Task OpenEditUserModal(int userId)
+    {
+        editUserErrorMessage = null;
+        successMessage = null;
+
+        editingUserId = userId;
+        updateUserRequest = new UpdateUserRequest();
+
+        showEditUserModal = true;
+        isLoadingEditUser = true;
+
+        try
+        {
+            var result = await UserService.GetUserByIdAsync(userId);
+
+            if (result?.Content is not null)
+            {
+                updateUserRequest = new UpdateUserRequest
+                {
+                    Name = result.Content.Name,
+                    Email = result.Content.Email,
+                    Age = result.Content.Age,
+                    Description = result.Content.Description
+                };
+            }
+            else
+            {
+                editUserErrorMessage = result?.Message ?? "Cannot load user information.";
+                CloseEditUserModal();
+            }
+        }
+        catch
+        {
+            editUserErrorMessage = "Cannot connect to API.";
+            CloseEditUserModal();
+        }
+        finally
+        {
+            isLoadingEditUser = false;
+        }
+    }
+
+    private void CloseEditUserModal()
+    {
+        showEditUserModal = false;
+        editingUserId = 0;
+        updateUserRequest = new UpdateUserRequest();
+        isLoadingEditUser = false;
+        isUpdatingUser = false;
+    }
+
+    private async Task UpdateUser()
+    {
+        if (editingUserId <= 0)
+        {
+            editUserErrorMessage = "Invalid user.";
+            return;
+        }
+
+        editUserErrorMessage = null;
+        successMessage = null;
+        isUpdatingUser = true;
+
+        try
+        {
+            var result = await UserService.UpdateUserAsync(
+                editingUserId,
+                updateUserRequest);
+
+            if (result?.Content is not null)
+            {
+                successMessage = result.Message;
+
+                CloseEditUserModal();
+
+                await LoadUsers();
+            }
+            else
+            {
+                editUserErrorMessage = result?.Message ?? "Cannot update user.";
+            }
+        }
+        catch
+        {
+            editUserErrorMessage = "Cannot connect to API.";
+        }
+        finally
+        {
+            isUpdatingUser = false;
+        }
+    }
+}

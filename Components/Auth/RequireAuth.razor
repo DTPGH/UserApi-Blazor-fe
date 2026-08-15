@@ -1,0 +1,65 @@
+@using UserApi.Blazor.Services
+@inject AuthService AuthService
+@inject NavigationManager NavigationManager
+
+@if (!AuthService.IsInitialized)
+{
+    <div class="container py-5">
+        <div class="d-flex justify-content-center">
+            <div class="text-center">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+
+                <p class="text-muted">
+                    Checking authentication...
+                </p>
+            </div>
+        </div>
+    </div>
+}
+else if (canRender)
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public bool RequireAdmin { get; set; }
+
+    [Parameter]
+    public string LoginRedirectUrl { get; set; } = "/login";
+
+    [Parameter]
+    public string ForbiddenRedirectUrl { get; set; } = "/projects";
+
+    private bool canRender;
+
+    protected override void OnParametersSet()
+    {
+        if (!AuthService.IsInitialized)
+        {
+            canRender = false;
+            return;
+        }
+
+        if (!AuthService.IsAuthenticated)
+        {
+            canRender = false;
+            NavigationManager.NavigateTo(LoginRedirectUrl);
+            return;
+        }
+
+        if (RequireAdmin && !AuthService.IsAdmin)
+        {
+            canRender = false;
+            NavigationManager.NavigateTo(ForbiddenRedirectUrl);
+            return;
+        }
+
+        canRender = true;
+    }
+}

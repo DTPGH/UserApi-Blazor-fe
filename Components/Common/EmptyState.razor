@@ -1,0 +1,37 @@
+<div class="card shadow-sm">
+    <div class="card-body text-center py-5">
+        <div class="display-6 mb-3">
+            @Icon
+        </div>
+
+        <h5>@Title</h5>
+
+        @if (!string.IsNullOrWhiteSpace(Message))
+        {
+            <p class="text-muted mb-0">
+                @Message
+            </p>
+        }
+
+        @if (Actions is not null)
+        {
+            <div class="mt-3">
+                @Actions
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string Icon { get; set; } = "📭";
+
+    [Parameter]
+    public string Title { get; set; } = "No data found";
+
+    [Parameter]
+    public string? Message { get; set; }
+
+    [Parameter]
+    public RenderFragment? Actions { get; set; }
+}
