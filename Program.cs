@@ -17,5 +17,6 @@ builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<LocalStorageService>();
 builder.Services.AddScoped<ApiHttpClient>();
+builder.Services.AddScoped<ProfileService>();
 
 await builder.Build().RunAsync();

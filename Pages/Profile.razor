@@ -1,0 +1,367 @@
+@page "/profile"
+
+@using UserApi.Blazor.Models.Responses
+@using UserApi.Blazor.Models.Requests
+@using UserApi.Blazor.Services
+
+@inject ProfileService ProfileService
+@inject AuthService AuthService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Profile</PageTitle>
+
+<RequireAuth>
+    <div class="container py-4">
+        <PageHeader Title="My Profile" Subtitle="View your account information.">
+            <Actions>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary" @onclick="LoadProfile">
+                        Refresh
+                    </button>
+                    @if (profile is not null)
+                    {
+                        <button class="btn btn-primary" @onclick="OpenEditProfileModal">
+                            Edit Profile
+                        </button>
+                    }
+                </div>
+            </Actions>
+        </PageHeader>
+
+        <ErrorAlert Message="@errorMessage" />
+
+        @if (string.IsNullOrWhiteSpace(successMessage) == false)
+        {
+            <div class="alert alert-success">
+                @successMessage
+            </div>
+        }
+
+            
+        @if (isLoading)
+        {
+            <LoadingState Message="Loading profile..." />
+        }
+        else if (profile is not null)
+        {
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="card shadow-sm">
+                        <div class="card-body p-4">
+                            <div class="d-flex align-items-center mb-4">
+                                <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-3"
+                                     style="width: 64px; height: 64px; font-size: 24px;">
+                                    @GetAvatarText(profile.Name)
+                                </div>
+
+                                <div>
+                                    <h4 class="mb-1">@profile.Name</h4>
+                                    <div class="text-muted">@profile.Email</div>
+
+                                    <span class="badge @(profile.Role == "Admin" ? "bg-danger" : "bg-secondary") mt-2">
+                                        @profile.Role
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100">
+                                        <div class="text-muted small">User Id</div>
+                                        <div class="fw-semibold">#@profile.Id</div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100">
+                                        <div class="text-muted small">Age</div>
+                                        <div class="fw-semibold">@profile.Age</div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100">
+                                        <div class="text-muted small">Name</div>
+                                        <div class="fw-semibold">@profile.Name</div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 h-100">
+                                        <div class="text-muted small">Email</div>
+                                        <div class="fw-semibold">@profile.Email</div>
+                                    </div>
+                                </div>
+
+                                <div class="col-12">
+                                    <div class="border rounded p-3">
+                                        <div class="text-muted small">Description</div>
+                                        <div>
+                                            @(string.IsNullOrWhiteSpace(profile.Description)
+                                                ? "No description"
+                                                : profile.Description)
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="alert alert-info mt-4 mb-0">
+                                This information is loaded from the authenticated user API.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 mt-3 mt-lg-0">
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title">Account Status</h5>
+
+                            <div class="mb-3">
+                                <div class="text-muted small">Authentication</div>
+                                <div class="fw-semibold text-success">
+                                    Logged in
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="text-muted small">Role</div>
+                                <span class="badge @(profile.Role == "Admin" ? "bg-danger" : "bg-secondary")">
+                                    @profile.Role
+                                </span>
+                            </div>
+
+                            <div>
+                                <div class="text-muted small">Access</div>
+
+                                @if (profile.Role == "Admin")
+                                {
+                                    <div>
+                                        You can manage users, projects and tasks.
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div>
+                                        You can manage your own projects and tasks.
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <EmptyState Icon="👤" Title="Profile not found" Message="We could not load your profile information." />
+        }
+    </div>
+</RequireAuth>
+
+@if (showEditProfileModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0, 0, 0, 0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Profile</h5>
+
+                    <button type="button" class="btn-close" @onclick="CloseEditProfileModal">
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    @if (!string.IsNullOrWhiteSpace(editProfileErrorMessage))
+                    {
+                        <div class="alert alert-danger">
+                            @editProfileErrorMessage
+                        </div>
+                    }
+
+                    <EditForm Model="updateProfileRequest" OnValidSubmit="UpdateProfile">
+                        <DataAnnotationsValidator />
+
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <InputText class="form-control" @bind-Value="updateProfileRequest.Name" />
+                            <ValidationMessage For="@(() => updateProfileRequest.Name)" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <InputText class="form-control" @bind-Value="updateProfileRequest.Email" />
+                            <ValidationMessage For="@(() => updateProfileRequest.Email)" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Age</label>
+                            <InputNumber class="form-control" @bind-Value="updateProfileRequest.Age" />
+                            <ValidationMessage For="@(() => updateProfileRequest.Age)" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <InputTextArea class="form-control" rows="4" @bind-Value="updateProfileRequest.Description" />
+                            <ValidationMessage For="@(() => updateProfileRequest.Description)" />
+                        </div>
+
+                        <div class="alert alert-info small">
+                            Your role cannot be changed from this page.
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <button type="button" class="btn btn-secondary" @onclick="CloseEditProfileModal">
+                                Cancel
+                            </button>
+
+                            <button type="submit" class="btn btn-primary" disabled="@isUpdatingProfile">
+                                @(isUpdatingProfile ? "Saving..." : "Save Changes")
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private UserResponse? profile;
+
+    private bool isLoading;
+
+    private string? errorMessage;
+
+    @* UPdate my profile *@
+    private UpdateUserRequest updateProfileRequest = new();
+
+    private bool showEditProfileModal;
+
+    private bool isUpdatingProfile;
+
+    private string? editProfileErrorMessage;
+
+    private string? successMessage;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadProfile();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadProfile()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var result = await ProfileService.GetMeAsync();
+
+            if (result?.Content is not null)
+            {
+                profile = result.Content;
+            }
+            else
+            {
+                errorMessage = result?.Message ?? "Cannot load profile.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Unable to load profile. Please try again.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private static string GetAvatarText(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return "?";
+        }
+
+        return name.Trim()[0].ToString().ToUpper();
+    }
+
+    private void OpenEditProfileModal()
+    {
+        if (profile is null)
+        {
+            editProfileErrorMessage = "Profile is not loaded.";
+            return;
+        }
+
+        errorMessage = null;
+        successMessage = null;
+        editProfileErrorMessage = null;
+
+        updateProfileRequest = new UpdateUserRequest
+        {
+            Name = profile.Name,
+            Email = profile.Email,
+            Age = profile.Age,
+            Description = profile.Description
+        };
+
+        showEditProfileModal = true;
+    }
+
+    private void CloseEditProfileModal()
+    {
+        showEditProfileModal = false;
+        updateProfileRequest = new UpdateUserRequest();
+        isUpdatingProfile = false;
+        editProfileErrorMessage = null;
+    }
+
+    private async Task UpdateProfile()
+    {
+        if (profile is null)
+        {
+            editProfileErrorMessage = "Profile is not loaded.";
+            return;
+        }
+
+        editProfileErrorMessage = null;
+        errorMessage = null;
+        successMessage = null;
+        isUpdatingProfile = true;
+
+        try
+        {
+            var result = await ProfileService.UpdateMyProfileAsync(
+                profile.Id,
+                updateProfileRequest);
+
+            if (result?.Content is not null)
+            {
+                profile = result.Content;
+
+                await AuthService.UpdateCurrentUserAsync(result.Content);
+
+                successMessage = result.Message;
+
+                CloseEditProfileModal();
+            }
+            else
+            {
+                editProfileErrorMessage = result?.Message ?? "Cannot update profile.";
+            }
+        }
+        catch
+        {
+            editProfileErrorMessage = "Unable to update profile. Please try again.";
+        }
+        finally
+        {
+            isUpdatingProfile = false;
+        }
+    }
+}
