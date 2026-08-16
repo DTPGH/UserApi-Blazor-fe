@@ -16,5 +16,6 @@ builder.Services.AddScoped<TaskItemService>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<LocalStorageService>();
+builder.Services.AddScoped<ApiHttpClient>();
 
 await builder.Build().RunAsync();

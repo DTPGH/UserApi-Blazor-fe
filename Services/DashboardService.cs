@@ -6,14 +6,14 @@ namespace UserApi.Blazor.Services;
 
 public class DashboardService
 {
-    private readonly HttpClient _httpClient;
-    public DashboardService(HttpClient httpClient)
+    private readonly ApiHttpClient _apiHttpClient;
+    public DashboardService(ApiHttpClient apiHttpClient)
     {
-        _httpClient = httpClient;
+        _apiHttpClient = apiHttpClient;
     }
 
     public async Task<ApiResponse<DashboardSummaryResponse>?> GetSummaryAsync()
     {
-        return await _httpClient.GetFromJsonAsync<ApiResponse<DashboardSummaryResponse>>("/api/dashboard/summary");
+        return await _apiHttpClient.GetFromJsonAsync<ApiResponse<DashboardSummaryResponse>>("/api/dashboard/summary");
     }
 }

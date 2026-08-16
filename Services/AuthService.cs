@@ -22,6 +22,8 @@ public class AuthService
 
     private const string AuthStorageKey = "userapi_auth_state";
 
+    private readonly SemaphoreSlim _refreshLock = new(1, 1);
+
     public AuthService(HttpClient httpClient, LocalStorageService localStorageService)
     {
         _httpClient = httpClient;
@@ -137,5 +139,84 @@ public class AuthService
     private void NotifyAuthStateChanged()
     {
         OnAuthStateChanged?.Invoke();
+    }
+
+    public async Task<bool> TryRefreshTokenAsync()
+    {
+        if (string.IsNullOrWhiteSpace(RefreshToken))
+        {
+            await ClearAuthStateAsync();
+            return false;
+        }
+
+        await _refreshLock.WaitAsync();
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(RefreshToken))
+            {
+                await ClearAuthStateAsync();
+                return false;
+            }
+
+            var request = new RefreshTokenRequest
+            {
+                RefreshToken = RefreshToken
+            };
+
+            var response = await _httpClient.PostAsJsonAsync(
+                "/api/auth/refresh-token",
+                request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                await ClearAuthStateAsync();
+                return false;
+            }
+
+            var result = await response.Content
+                .ReadFromJsonAsync<ApiResponse<AuthResponse>>();
+
+            if (result?.Content is null ||
+                string.IsNullOrWhiteSpace(result.Content.AccessToken) ||
+                string.IsNullOrWhiteSpace(result.Content.RefreshToken))
+            {
+                await ClearAuthStateAsync();
+                return false;
+            }
+
+            AccessToken = result.Content.AccessToken;
+            RefreshToken = result.Content.RefreshToken;
+
+            if (result.Content.User is not null)
+            {
+                CurrentUser = result.Content.User;
+            }
+
+            _httpClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", AccessToken);
+
+            var authState = new AuthState
+            {
+                AccessToken = AccessToken,
+                RefreshToken = RefreshToken,
+                User = CurrentUser!
+            };
+
+            await _localStorageServices.SetItemAsync(AuthStorageKey, authState);
+
+            NotifyAuthStateChanged();
+
+            return true;
+        }
+        catch
+        {
+            await ClearAuthStateAsync();
+            return false;
+        }
+        finally
+        {
+            _refreshLock.Release();
+        }
     }
 }
