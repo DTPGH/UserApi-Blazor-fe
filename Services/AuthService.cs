@@ -219,4 +219,31 @@ public class AuthService
             _refreshLock.Release();
         }
     }
+
+    public async Task<ApiResponse<UserResponse>?> RegisterAsync(RegisterRequest request)
+    {
+        var response = await _httpClient.PostAsJsonAsync("/api/Auth/register", request);
+
+        return await response.Content.ReadFromJsonAsync<ApiResponse<UserResponse>>();
+    }
+
+    public async Task UpdateCurrentUserAsync(UserResponse user)
+    {
+        CurrentUser = user;
+
+        if (!string.IsNullOrWhiteSpace(AccessToken) &&
+            !string.IsNullOrWhiteSpace(RefreshToken))
+        {
+            var authState = new AuthState
+            {
+                AccessToken = AccessToken,
+                RefreshToken = RefreshToken,
+                User = user
+            };
+
+            await _localStorageServices.SetItemAsync(AuthStorageKey, authState);
+        }
+
+        NotifyAuthStateChanged();
+    }
 }

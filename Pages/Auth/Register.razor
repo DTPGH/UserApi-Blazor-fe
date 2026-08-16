@@ -1,0 +1,140 @@
+@page "/register"
+
+@using UserApi.Blazor.Models.Requests
+@using UserApi.Blazor.Services
+
+@inject AuthService AuthService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Register</PageTitle>
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-7 col-lg-6">
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    <div class="text-center mb-4">
+                        <h3 class="mb-1">Create Account</h3>
+                        <p class="text-muted mb-0">
+                            Register a new account to manage your projects and tasks.
+                        </p>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(errorMessage))
+                    {
+                        <div class="alert alert-danger">
+                            @errorMessage
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(successMessage))
+                    {
+                        <div class="alert alert-success">
+                            @successMessage
+                        </div>
+                    }
+
+                    <EditForm Model="registerRequest" OnValidSubmit="RegisterUser">
+                        <DataAnnotationsValidator />
+
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <InputText class="form-control" @bind-Value="registerRequest.Name"
+                                       placeholder="Enter your name" />
+                            <ValidationMessage For="@(() => registerRequest.Name)" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <InputText class="form-control" @bind-Value="registerRequest.Email"
+                                       placeholder="Enter your email" />
+                            <ValidationMessage For="@(() => registerRequest.Email)" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Password</label>
+                            <InputText class="form-control" type="password" @bind-Value="registerRequest.Password"
+                                       placeholder="Enter your password" />
+                            <ValidationMessage For="@(() => registerRequest.Password)" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Age</label>
+                            <InputNumber class="form-control" @bind-Value="registerRequest.Age" />
+                            <ValidationMessage For="@(() => registerRequest.Age)" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <InputTextArea class="form-control" rows="3" @bind-Value="registerRequest.Description"
+                                           placeholder="Tell something about yourself..." />
+                            <ValidationMessage For="@(() => registerRequest.Description)" />
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100" disabled="@isSubmitting">
+                            @(isSubmitting ? "Creating account..." : "Register")
+                        </button>
+                    </EditForm>
+
+                    <div class="text-center mt-3">
+                        <span class="text-muted">Already have an account?</span>
+                        <a href="/login" class="text-decoration-none">
+                            Login here
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private RegisterRequest registerRequest = new();
+
+    private bool isSubmitting;
+
+    private string? errorMessage;
+
+    private string? successMessage;
+
+    protected override void OnInitialized()
+    {
+        if (AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/dashboard");
+        }
+    }
+
+    private async Task RegisterUser()
+    {
+        errorMessage = null;
+        successMessage = null;
+        isSubmitting = true;
+
+        try
+        {
+            var result = await AuthService.RegisterAsync(registerRequest);
+
+            if (result?.Content is not null)
+            {
+                successMessage = result.Message;
+
+                await Task.Delay(800);
+
+                NavigationManager.NavigateTo("/login");
+            }
+            else
+            {
+                errorMessage = result?.Message ?? "Cannot register account.";
+            }
+        }
+        catch
+        {
+            errorMessage = "Cannot connect to API.";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}
