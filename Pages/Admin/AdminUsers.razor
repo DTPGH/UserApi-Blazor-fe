@@ -580,7 +580,7 @@
             if (result?.Content is not null)
             {
                 users = result.Content.Items;
-                totalRecords = result.Content.TotalRecords;
+                totalRecords = result.Content.TotalItems;
                 totalPages = result.Content.TotalPages <= 0
                     ? 1
                     : result.Content.TotalPages;
